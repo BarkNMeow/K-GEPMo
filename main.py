@@ -10,7 +10,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.keys import Keys
 
-keywords = ['이재명', '윤석열']
+keywords = ['이재명', '윤석열', '조국']
 
 def sleep_random():
     time.sleep(0.5 + random.random())
@@ -20,8 +20,6 @@ def click_xpath_element(driver, xpath):
     element.click()
     sleep_random()
 
-url = 'https://trends.google.com/trends/explore?geo=KR&q=이재명,윤석열&hl=ko'
-
 driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()))
 driver.get('https://trends.google.com')
 
@@ -29,7 +27,7 @@ click_xpath_element(driver, '//*[@id="gb"]/div[2]/div[1]/div[1]')
 click_xpath_element(driver, '//*[@id="yDmH0d"]/c-wiz/div/div[2]/div[3]/gm-raised-drawer/div/div[2]/div/ul/li[2]')
 
 action = ActionChains(driver)
-time.sleep(0.5 + random.random())
+time.sleep(1 + random.random())
 
 for word in keywords:
     action.send_keys(word).perform()
@@ -38,6 +36,8 @@ for word in keywords:
 
     click_xpath_element(driver, '//*[@id="explorepage-content-header"]/explore-pills/div/button')
 
+time.sleep(4 + random.random())
+click_xpath_element(driver, '/html/body/div[2]/div[2]/div/md-content/div/div/div[1]/trends-widget/ng-include/widget/div/div/div/widget-actions/div/button[1]')
 
 while input() != '':
     pass
