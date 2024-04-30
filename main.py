@@ -1,6 +1,8 @@
 # Korean general election ForeCasting
 import time
 import random
+import os
+import csv
 
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
@@ -12,7 +14,22 @@ from selenium.webdriver.common.keys import Keys
 
 class SearchVolumeCrawler:
     def __init__(self):
-        self.driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()))
+        # define and clear download directory
+        download_dir = os.path.dirname(os.path.realpath(__file__)) + '\\tmp'
+        try:
+            files = os.listdir(download_dir)
+            for file in files:
+                file_path = os.path.join(download_dir, file)
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+        except OSError:
+            print('Error occurred while clearing directory')
+
+        chrome_options = webdriver.ChromeOptions()
+        prefs = {'download.default_directory': download_dir }
+        chrome_options.add_experimental_option('prefs', prefs)
+
+        self.driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()), options=chrome_options)
         self.action = ActionChains(self.driver)
 
         self.driver.get('https://trends.google.com')
@@ -37,16 +54,16 @@ class SearchVolumeCrawler:
         self.click_xpath_element('//*[@id="compare-pickers-wrapper"]/div/custom-date-picker')
         self.click_xpath_element('//*[@id="select_option_24"]')
 
-        self.sleep_random()
+        self.sleep_random(0.5)
 
         # Input date range and confirm
         for i, name in enumerate(['from', 'to']):
             date_input_elem = self.driver.find_element(By.CSS_SELECTOR, f'.custom-date-picker-dialog-range-{name} input')
             date_input_elem.clear()
             date_input_elem.click()
-            self.sleep_random()
+            self.sleep_random(0.25)
             self.action.send_keys(date_range[i]).perform()
-            self.sleep_random()
+            self.sleep_random(0.25)
 
         self.driver.find_element(By.CSS_SELECTOR, '.custom-date-picker-dialog-button:last-child').click()
         self.sleep_random()
@@ -56,20 +73,46 @@ class SearchVolumeCrawler:
 
         for word in keywords:
             self.action.send_keys(word).perform()
-            time.sleep(0.1 + random.random() * 0.1)
+            self.sleep_random(0.5)
             self.action.send_keys(Keys.ENTER).perform()
-            self.sleep_random(3)
+            self.sleep_random(0.5)
 
             self.click_xpath_element('//*[@id="explorepage-content-header"]/explore-pills/div/button')
 
         # Download csv file
-        self.sleep_random(3)
+        self.sleep_random(2)
         self.driver.find_element(By.CSS_SELECTOR, '.widget-container-wrapper div:first-child .widget-actions-item-flatten button:first-child').click()
         time.sleep(1)
+
+        result = []
+        download_file_path = '.\\tmp\\multiTimeline.csv'
+
+        # Analyze csv file
+        with open(download_file_path, encoding='UTF-8') as csvfile:
+            for _ in range(3):
+                csvfile.readline()
+
+            reader = csv.reader(csvfile)
+            for row in reader:
+                row_list = []
+                row_list.append(row[0]) # date
+                row_list.extend(map(int, row[1:])) # rsv
+
+                result.append(row_list)
+
+            csvfile.close()
+
+        # Remove the downloaded file
+        if os.path.exists(download_file_path):
+            os.remove(download_file_path)
+        
+        return result
 
 if __name__ == '__main__':
     keywords = ['이재명', '윤석열', '조국']
     date_range = ('2023-3-15', '2023-4-15')
 
     crawler = SearchVolumeCrawler()
-    crawler.get_main_rsv(keywords, date_range)
+    rsv = crawler.get_main_rsv(keywords, date_range)
+
+    print(rsv)
