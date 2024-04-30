@@ -10,67 +10,66 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.keys import Keys
 
-keywords = ['이재명', '윤석열', '조국']
-date_from, date_to = '2023-3-15', '2023-4-15' 
+class SearchVolumeCrawler:
+    def __init__(self):
+        self.driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()))
+        self.action = ActionChains(self.driver)
 
-def sleep_random():
-    time.sleep(0.5 + random.random())
+        self.driver.get('https://trends.google.com')
 
-def click_xpath_element(driver, xpath):
-    element = driver.find_element(By.XPATH, xpath)
-    element.click()
-    sleep_random()
+        # Navigate to "Explore" Page
+        self.click_xpath_element('//*[@id="gb"]/div[2]/div[1]/div[1]')
+        self.click_xpath_element('//*[@id="yDmH0d"]/c-wiz/div/div[2]/div[3]/gm-raised-drawer/div/div[2]/div/ul/li[2]')
 
-driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()))
-driver.get('https://trends.google.com')
+    def __del__(self):
+        self.driver.quit()
 
-# Navigate to "Explore" Page
-click_xpath_element(driver, '//*[@id="gb"]/div[2]/div[1]/div[1]')
-click_xpath_element(driver, '//*[@id="yDmH0d"]/c-wiz/div/div[2]/div[3]/gm-raised-drawer/div/div[2]/div/ul/li[2]')
+    def sleep_random(self, min_time=1):
+        time.sleep(min_time + random.random())
 
-action = ActionChains(driver)
-time.sleep(1 + random.random())
+    def click_xpath_element(self, xpath):
+        element = self.driver.find_element(By.XPATH, xpath)
+        element.click()
+        self.sleep_random()
 
-# Pick date
-click_xpath_element(driver, '//*[@id="compare-pickers-wrapper"]/div/custom-date-picker')
-click_xpath_element(driver, '//*[@id="select_option_24"]')
+    def get_main_rsv(self, keywords, date_range):
+        # Open date pick window
+        self.click_xpath_element('//*[@id="compare-pickers-wrapper"]/div/custom-date-picker')
+        self.click_xpath_element('//*[@id="select_option_24"]')
 
-time.sleep(3)
+        self.sleep_random()
 
-date_start_elem = driver.find_element(By.CSS_SELECTOR, '.custom-date-picker-dialog-range-from input')
-date_start_elem.clear()
-sleep_random()
-date_start_elem.click()
-sleep_random()
-action.send_keys(date_from).perform()
+        # Input date range and confirm
+        for i, name in enumerate(['from', 'to']):
+            date_input_elem = self.driver.find_element(By.CSS_SELECTOR, f'.custom-date-picker-dialog-range-{name} input')
+            date_input_elem.clear()
+            date_input_elem.click()
+            self.sleep_random()
+            self.action.send_keys(date_range[i]).perform()
+            self.sleep_random()
 
-date_start_elem = driver.find_element(By.CSS_SELECTOR, '.custom-date-picker-dialog-range-to input')
-date_start_elem.clear()
-sleep_random()
-date_start_elem.click()
-sleep_random()
-action.send_keys(date_to).perform()
-sleep_random()
+        self.driver.find_element(By.CSS_SELECTOR, '.custom-date-picker-dialog-button:last-child').click()
+        self.sleep_random()
 
-driver.find_element(By.CSS_SELECTOR, '.custom-date-picker-dialog-button:last-child').click()
+        # Enter keywords
+        self.click_xpath_element('//*[@id="input-29"]')
 
-time.sleep(5)
+        for word in keywords:
+            self.action.send_keys(word).perform()
+            time.sleep(0.1 + random.random() * 0.1)
+            self.action.send_keys(Keys.ENTER).perform()
+            self.sleep_random(3)
 
-# Enter keywords
-for word in keywords:
-    action.send_keys(word).perform()
-    time.sleep(0.1 + random.random() * 0.1)
-    action.send_keys(Keys.ENTER).perform()
+            self.click_xpath_element('//*[@id="explorepage-content-header"]/explore-pills/div/button')
 
-    click_xpath_element(driver, '//*[@id="explorepage-content-header"]/explore-pills/div/button')
+        # Download csv file
+        self.sleep_random(3)
+        self.driver.find_element(By.CSS_SELECTOR, '.widget-container-wrapper div:first-child .widget-actions-item-flatten button:first-child').click()
+        time.sleep(1)
 
-    
+if __name__ == '__main__':
+    keywords = ['이재명', '윤석열', '조국']
+    date_range = ('2023-3-15', '2023-4-15')
 
-time.sleep(3 + random.random())
-driver.find_element(By.CSS_SELECTOR, '.widget-container-wrapper div:first-child .widget-actions-item-flatten button:first-child').click()
-# click_xpath_element(driver, '/html/body/div[2]/div[2]/div/md-content/div/div/div[1]/trends-widget/ng-include/widget/div')
-
-while input() != '':
-    pass
-
-driver.quit()
+    crawler = SearchVolumeCrawler()
+    crawler.get_main_rsv(keywords, date_range)
