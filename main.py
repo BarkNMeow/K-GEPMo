@@ -36,8 +36,9 @@ for word in keywords:
 
     click_xpath_element(driver, '//*[@id="explorepage-content-header"]/explore-pills/div/button')
 
-time.sleep(4 + random.random())
-click_xpath_element(driver, '/html/body/div[2]/div[2]/div/md-content/div/div/div[1]/trends-widget/ng-include/widget/div/div/div/widget-actions/div/button[1]')
+time.sleep(3 + random.random())
+driver.find_element(By.CSS_SELECTOR, '.widget-container-wrapper div:first-child .widget-actions-item-flatten button:first-child').click()
+# click_xpath_element(driver, '/html/body/div[2]/div[2]/div/md-content/div/div/div[1]/trends-widget/ng-include/widget/div')
 
 while input() != '':
     pass
