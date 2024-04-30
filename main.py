@@ -3,6 +3,7 @@ import time
 import random
 import os
 import csv
+from datetime import datetime, timedelta
 
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
@@ -49,35 +50,63 @@ class SearchVolumeCrawler:
         element.click()
         self.sleep_random()
 
-    def get_main_rsv(self, keywords, date_range):
+    def click_css_element(self, selector):
+        element = self.driver.find_element(By.CSS_SELECTOR, selector)
+        element.click()
+        self.sleep_random()
+
+    def set_date(self, date_range):
         # Open date pick window
         self.click_xpath_element('//*[@id="compare-pickers-wrapper"]/div/custom-date-picker')
-        self.click_xpath_element('//*[@id="select_option_24"]')
+        self.click_css_element('.custom-date-picker-select-option:last-child')
 
         self.sleep_random(0.5)
 
         # Input date range and confirm
-        for i, name in enumerate(['from', 'to']):
-            date_input_elem = self.driver.find_element(By.CSS_SELECTOR, f'.custom-date-picker-dialog-range-{name} input')
-            date_input_elem.clear()
-            date_input_elem.click()
-            self.sleep_random(0.25)
-            self.action.send_keys(date_range[i]).perform()
-            self.sleep_random(0.25)
+        while True:
+            for i, name in enumerate(['from', 'to']):
+                date_input_elem = self.driver.find_element(By.CSS_SELECTOR, f'.custom-date-picker-dialog-range-{name} input')
+                date_input_elem.clear()
+                date_input_elem.click()
+                self.sleep_random(0.25)
+                self.action.send_keys(date_range[i]).perform()
+                self.sleep_random(0.25)
 
-        self.driver.find_element(By.CSS_SELECTOR, '.custom-date-picker-dialog-button:last-child').click()
-        self.sleep_random()
+            confirm_button = self.driver.find_element(By.CSS_SELECTOR, '.custom-date-picker-dialog-button:last-child')
+            self.sleep_random()
 
+            if confirm_button.get_dom_attribute('disabled') != 'true':
+                print(confirm_button.get_dom_attribute('disabled'))
+                confirm_button.click()
+                return
+
+    def enter_keyword(self, keywords):
         # Enter keywords
-        self.click_xpath_element('//*[@id="input-29"]')
+        self.click_css_element('.search-term-wrapper.term-not-selected')
 
         for word in keywords:
             self.action.send_keys(word).perform()
-            self.sleep_random(0.5)
+            self.sleep_random()
             self.action.send_keys(Keys.ENTER).perform()
-            self.sleep_random(0.5)
+            self.sleep_random()
 
             self.click_xpath_element('//*[@id="explorepage-content-header"]/explore-pills/div/button')
+
+    def clear_keyword(self):
+        while True:
+            try:
+                self.driver.find_element(By.CSS_SELECTOR, '.search-term-wrapper:not(.term-not-selected)').click()
+                self.sleep_random(0.5)
+                self.action.send_keys(Keys.DELETE).perform()
+                self.sleep_random(0.5)
+                self.action.send_keys(Keys.ENTER).perform()
+                self.sleep_random(0.5)
+            except Exception:
+                return
+
+    def get_main_rsv(self, keywords, date_range):
+        self.set_date(date_range)
+        self.enter_keyword(keywords)
 
         # Download csv file
         self.sleep_random(2)
@@ -107,12 +136,36 @@ class SearchVolumeCrawler:
             os.remove(download_file_path)
         
         return result
+    
+    def get_query_rsv(self, keyword, date):
+        pass
+        
+        
 
 if __name__ == '__main__':
-    keywords = ['이재명', '윤석열', '조국']
+    keywords = ['이재명']
     date_range = ('2023-3-15', '2023-4-15')
 
     crawler = SearchVolumeCrawler()
     rsv = crawler.get_main_rsv(keywords, date_range)
+    crawler.clear_keyword()
+    crawler.sleep_random(0.5)
+    flag = True
 
-    print(rsv)
+    for line in rsv:
+        date = line[0]
+        next_day = (datetime.strptime(date, '%Y-%m-%d') + timedelta(days=1)).strftime('%Y-%m-%d')
+        crawler.set_date((date, next_day))
+        crawler.sleep_random()
+
+        for keyword in keywords:
+            if flag:
+                crawler.click_css_element('.search-term-wrapper.term-not-selected')
+                flag = False
+            else:
+                crawler.click_css_element('.search-term-wrapper:not(.term-not-selected)')
+
+            crawler.action.send_keys(keyword).perform()
+            crawler.sleep_random(0.5)
+            crawler.action.send_keys(Keys.ENTER).perform()
+            crawler.sleep_random(0.5)
