@@ -3,7 +3,6 @@ import time
 import random
 import os
 import csv
-from datetime import datetime, timedelta
 
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service as ChromeService
@@ -18,11 +17,15 @@ class SearchVolumeCrawler:
         # define and clear download directory
         download_dir = os.path.dirname(os.path.realpath(__file__)) + '\\tmp'
         try:
-            files = os.listdir(download_dir)
-            for file in files:
-                file_path = os.path.join(download_dir, file)
-                if os.path.isfile(file_path):
-                    os.remove(file_path)
+            if os.path.exists(download_dir):
+                files = os.listdir(download_dir)
+                for file in files:
+                    file_path = os.path.join(download_dir, file)
+                    if os.path.isfile(file_path):
+                        os.remove(file_path)
+            else:
+                os.mkdir(download_dir)
+
         except OSError:
             print('Error occurred while clearing directory')
 
@@ -51,9 +54,16 @@ class SearchVolumeCrawler:
         self.sleep_random()
 
     def click_css_element(self, selector):
-        element = self.driver.find_element(By.CSS_SELECTOR, selector)
-        element.click()
-        self.sleep_random()
+        flag = True
+        while flag:
+            try:
+                element = self.driver.find_element(By.CSS_SELECTOR, selector)
+                element.click()
+            except Exception:
+                continue
+
+            self.sleep_random()
+            flag = False
 
     def set_date(self, date_range):
         # Open date pick window
@@ -137,9 +147,40 @@ class SearchVolumeCrawler:
         
         return result
     
-    def get_query_rsv(self, keyword, date):
-        pass
-        
+    def get_query_rsv(self, keywords, date_range):
+        # Get main rsv envelope
+        rsv = self.get_main_rsv(keywords, date_range)
+
+        # Initialize the keyword environment
+        self.clear_keyword()
+        self.sleep_random(0.5)
+        flag = True
+
+        # For each date, get related queries and their RSV for each keyword
+        for line in rsv:
+            date = line[0]
+            self.set_date((date, date))
+            self.sleep_random()
+
+            for keyword in keywords:
+                if flag:
+                    self.click_css_element('.search-term-wrapper.term-not-selected')
+                    flag = False
+                else:
+                    self.click_css_element('.search-term-wrapper:not(.term-not-selected)')
+
+                self.action.send_keys(keyword).perform()
+                self.sleep_random(0.5)
+                self.action.send_keys(Keys.ENTER).perform()
+                self.sleep_random(2)
+
+                related_queries_panel = self.driver.find_element(By.CSS_SELECTOR, '.widget-container-wrapper div:last-child .widget-template')
+                related_queries_panel.find_element(By.CSS_SELECTOR, 'md-select').click()
+                self.sleep_random(0.5)
+
+                self.driver.find_element(By.CSS_SELECTOR, 'md-select-menu md-option:last-child').click()
+                self.sleep_random()
+
         
 
 if __name__ == '__main__':
@@ -147,25 +188,5 @@ if __name__ == '__main__':
     date_range = ('2023-3-15', '2023-4-15')
 
     crawler = SearchVolumeCrawler()
-    rsv = crawler.get_main_rsv(keywords, date_range)
-    crawler.clear_keyword()
-    crawler.sleep_random(0.5)
-    flag = True
-
-    for line in rsv:
-        date = line[0]
-        next_day = (datetime.strptime(date, '%Y-%m-%d') + timedelta(days=1)).strftime('%Y-%m-%d')
-        crawler.set_date((date, next_day))
-        crawler.sleep_random()
-
-        for keyword in keywords:
-            if flag:
-                crawler.click_css_element('.search-term-wrapper.term-not-selected')
-                flag = False
-            else:
-                crawler.click_css_element('.search-term-wrapper:not(.term-not-selected)')
-
-            crawler.action.send_keys(keyword).perform()
-            crawler.sleep_random(0.5)
-            crawler.action.send_keys(Keys.ENTER).perform()
-            crawler.sleep_random(0.5)
+    crawler.get_query_rsv(keywords, date_range)
+    
