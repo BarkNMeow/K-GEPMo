@@ -48,7 +48,7 @@ def check_election_code():
 
     return data
 
-def get_district_election_list(election_id):
+def get_election_districts(election_id):
     election_code = 2
     rows = 100 # Max: 100
     
@@ -75,32 +75,31 @@ def get_district_election_list(election_id):
 
     return data
 
-def get_district_election_result(election_list_row):
-    if election_list_row['sgTypecode'] != '2':
-        type_code = election_list_row['sgTypecode']
-        raise Exception(f'Expected sgTypeCode 2, found {type_code}')
-    
+def get_election_result(election_list_row, is_district):
     params = dict.copy(election_list_row)
     
-    # del params['num']
     params['serviceKey'] = API_KEY
-    params['numOfRows'] = str(100)
-    params['pageNo'] = str(1)
+    params['numOfRows'] = 100
+    params['pageNo'] = 1
+    params['sgTypecode'] = 2 if is_district else 7
+
+    if not is_district:
+        del params['sggName']
 
     data = []
-    page = 0
         
     result = requests.get('http://apis.data.go.kr/9760000/VoteXmntckInfoInqireService2/getXmntckSttusInfoInqire', params=params)
 
     if result.status_code != 200:
         print('Status code not 200')
-        return
+        return data
 
     tree = etree.fromstring(str(result.content, encoding='UTF-8'))
     header = tree.find('header')
 
     if header.find('resultCode').text != 'INFO-00':
-        return
+        print(str(result.content, encoding='UTF-8'))
+        return data
 
     item = tree.find('body/items/item')
 
@@ -116,21 +115,20 @@ def get_district_election_result(election_list_row):
 
         data.append((party_name, cand_name, votes_recv))
 
-    page += 1
+    return data
 
-    return data    
 
 
 if __name__ == '__main__':
-
     # codes = check_election_code()
 
     # for e in codes:
     #     print(e)
 
-    districts = get_district_election_list('20200415')
-
+    districts = get_election_districts('20200415')
     for d in districts:
-        print(d)
-        print(get_district_election_result(d))
+        # print(d)
+        # print('지역구:', get_election_result(d, True))
+        time.sleep(0.5)
+        print('비례대표:', get_election_result(d, False))
         time.sleep(0.25)
