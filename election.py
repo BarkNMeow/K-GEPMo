@@ -75,7 +75,7 @@ def get_election_districts(election_id):
 
     return data
 
-def get_election_result(election_list_row, is_district):
+def get_election_result_district(election_list_row, is_district):
     params = dict.copy(election_list_row)
     
     params['serviceKey'] = API_KEY
@@ -113,9 +113,31 @@ def get_election_result(election_list_row, is_district):
         cand_name = item.find('hbj%02d' % (i, )).text
         votes_recv = int(item.find('dugsu%02d' % (i, )).text)
 
-        data.append((party_name, cand_name, votes_recv))
+        if is_district:
+            data.append((party_name, cand_name, votes_recv))
+        else:
+            data.append((party_name, votes_recv))
 
     return data
+
+def get_election_result(election_id):
+
+    districts = get_election_districts('20200415')
+    district_accumul = []
+    pr_accumul = {}
+
+    for i, d in enumerate(districts):
+        print(i)
+        district_accumul.append(get_election_result_district(d, True))
+
+        pr_result = get_election_result_district(d, False)
+        for name, votes in pr_result:
+            if not name in pr_accumul.keys():
+                pr_accumul[name] = 0
+
+            pr_accumul[name] += votes
+
+    return district_accumul, pr_accumul
 
 
 
@@ -125,10 +147,6 @@ if __name__ == '__main__':
     # for e in codes:
     #     print(e)
 
-    districts = get_election_districts('20200415')
-    for d in districts:
-        # print(d)
-        # print('지역구:', get_election_result(d, True))
-        time.sleep(0.5)
-        print('비례대표:', get_election_result(d, False))
-        time.sleep(0.25)
+    district, pr = get_election_result('20200415')
+    print(district)
+    print(pr)
