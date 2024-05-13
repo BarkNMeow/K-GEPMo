@@ -3,6 +3,8 @@ import json
 import xml.etree.ElementTree as etree
 
 import time
+import csv
+import os
 
 from apiKey import API_KEY
 
@@ -12,28 +14,54 @@ from apiKey import API_KEY
     PR election: 7
 '''
 
-def check_election_code():
-    rows = 100 # Max: 100
-    
-    # result = requests.get('http://apis.data.go.kr/9760000/CommonCodeService/getCommonSggCodeList', params=params)
-
-    data = []
-    page = 1
-
+def get_xml_content(url, params):
+    timeout = 1
     while True:
-        params = {'serviceKey': API_KEY, 'pageNo': str(page), 'numOfRows': str(rows) }
-        result = requests.get('http://apis.data.go.kr/9760000/CommonCodeService/getCommonSgCodeList', params=params)
+        try:
+            result = requests.get(url, params=params, timeout=5)
+        except Exception:
+            print(f'\nConnection timed out, Trying again ...')
+            continue
 
         if result.status_code != 200:
-            print('Status code not 200')
-            break
+            print(f'\nStatus code not 200, Trying again after {timeout} second(s)...')
+            time.sleep(timeout)
+            timeout <<= 1
+            continue
 
         tree = etree.fromstring(str(result.content, encoding='UTF-8'))
         header = tree.find('header')
 
-        if header.find('resultCode').text != 'INFO-00':
-            break
+        if header is None:
+            print(f'\nInvalid response, Trying again {timeout} second(s)...')
+            time.sleep(timeout)
+            timeout <<= 1
+            continue
+        
+        result_code = header.find('resultCode').text
+        if result_code != 'INFO-00':
+            print(f'\nResult code {result_code}, Trying again after {timeout} second(s)...')
+            print(params)
+            print(str(result.content, encoding='UTF-8'))
+            time.sleep(timeout)
+            timeout <<= 1
+            continue
 
+        return tree
+
+
+def check_election_code():
+    rows = 100 # Max: 100
+    data = []
+    page = 0
+    totalCount = 1
+
+    while page * rows < totalCount:
+        page += 1
+        params = {'serviceKey': API_KEY, 'pageNo': page, 'numOfRows': rows }
+        tree = get_xml_content('http://apis.data.go.kr/9760000/CommonCodeService/getCommonSgCodeList', params)
+
+        totalCount = int(tree.find('body/totalCount').text)
         items = tree.find('body/items')
 
         for item in items:
@@ -43,10 +71,10 @@ def check_election_code():
 
             data.append(item_dict)
 
-        page += 1
         time.sleep(0.5)
 
     return data
+    
 
 def get_election_districts(election_id):
     election_code = 2
@@ -56,13 +84,20 @@ def get_election_districts(election_id):
     page = 1
 
     while True:
-        params = {'serviceKey': API_KEY, 'pageNo': str(page), 'numOfRows': str(rows), 'resultType': 'json', 'sgId': str(election_id), 'sgTypecode': str(election_code) }
+        params = {'serviceKey': API_KEY, 'pageNo': str(page), 'numOfRows': str(rows), 'resultType': 'json', 'sgId': election_id, 'sgTypecode': election_code }
         result = requests.get('http://apis.data.go.kr/9760000/CommonCodeService/getCommonSggCodeList', params=params)
 
         if result.status_code != 200:
-            break
-
-        content = json.loads(str(result.content, encoding='UTF-8'))['response']
+            print('page %d: Status code not 200, Trying again in 1 second...' % (page, ))
+            time.sleep(1)
+            continue
+        
+        try:
+            content = json.loads(str(result.content, encoding='UTF-8'))['response']
+        except Exception:
+            print('page %d: Error decoding into json format, Trying again in 1 second...' % (page, ))
+            time.sleep(1)
+            continue
 
         if content['header']['resultCode'] != 'INFO-00':
             break
@@ -75,11 +110,36 @@ def get_election_districts(election_id):
 
     return data
 
-def get_election_result_district(election_list_row, is_district):
+def get_party_code(election_id):
+    rows = 100
+    data = []
+    page = 0
+    totalCount = 1
+
+    while page * rows < totalCount:
+        page += 1
+        params = {'serviceKey': API_KEY, 'pageNo': page, 'numOfRows': rows, 'sgId': election_id }
+        tree = get_xml_content('http://apis.data.go.kr/9760000/CommonCodeService/getCommonPartyCodeList', params)
+
+        totalCount = int(tree.find('body/totalCount').text)
+        items = tree.find('body/items')
+
+        for item in items:
+            item_dict = {}
+            for element in item:
+                item_dict[element.tag] = element.text
+
+            data.append(item_dict)
+
+        time.sleep(0.5)
+
+    return data
+
+def get_election_result_single(election_list_row, is_district):
     params = dict.copy(election_list_row)
     
     params['serviceKey'] = API_KEY
-    params['numOfRows'] = 100
+    params['numOfRows'] = 1
     params['pageNo'] = 1
     params['sgTypecode'] = 2 if is_district else 7
 
@@ -87,20 +147,8 @@ def get_election_result_district(election_list_row, is_district):
         del params['sggName']
 
     data = []
-        
-    result = requests.get('http://apis.data.go.kr/9760000/VoteXmntckInfoInqireService2/getXmntckSttusInfoInqire', params=params)
 
-    if result.status_code != 200:
-        print('Status code not 200')
-        return data
-
-    tree = etree.fromstring(str(result.content, encoding='UTF-8'))
-    header = tree.find('header')
-
-    if header.find('resultCode').text != 'INFO-00':
-        print(str(result.content, encoding='UTF-8'))
-        return data
-
+    tree = get_xml_content('http://apis.data.go.kr/9760000/VoteXmntckInfoInqireService2/getXmntckSttusInfoInqire', params)
     item = tree.find('body/items/item')
 
     for i in range(1, 51):
@@ -120,17 +168,21 @@ def get_election_result_district(election_list_row, is_district):
 
     return data
 
-def get_election_result(election_id):
-
-    districts = get_election_districts('20200415')
+def get_election_result(district_info):
+    districts_cnt = len(district_info)
     district_accumul = []
     pr_accumul = {}
 
-    for i, d in enumerate(districts):
-        print(i)
-        district_accumul.append(get_election_result_district(d, True))
+    for d in district_info:
+        # Exception for general election in 2016, where there was only one candidate
+        if int(d['num']) == 242 and d['sgId'] == '20160413':
+            district_accumul.append([])
+        else:
+            print("Fetching district %d / %d (%.2f%%)..." % (int(d['num']), districts_cnt, int(d['num']) * 100 / districts_cnt), end='\r')
+            district_accumul.append(get_election_result_single(d, True))
+            
 
-        pr_result = get_election_result_district(d, False)
+        pr_result = get_election_result_single(d, False)
         for name, votes in pr_result:
             if not name in pr_accumul.keys():
                 pr_accumul[name] = 0
@@ -147,6 +199,46 @@ if __name__ == '__main__':
     # for e in codes:
     #     print(e)
 
-    district, pr = get_election_result('20200415')
-    print(district)
-    print(pr)
+    download_dir = os.path.dirname(os.path.realpath(__file__)) + '\\election_data'
+    try:
+        if not os.path.exists(download_dir):
+            os.mkdir(download_dir)
+    except OSError:
+        print('Error occurred while making data directory')
+        exit()
+
+    date = '20200415'
+
+    print("Fetching district info...", end='\r')
+    district_info = get_election_districts(date)
+    print("Fetching district info... Done")
+
+    # print("Fetching party info...", end='\r')
+    # party_info = get_party_code(date)
+    # print("Fetching party info... Done")
+
+    # party_code = {}
+    # for row in party_info:
+    #     party_code[row['jdName']] = row['pOrder']
+
+    district, pr = get_election_result(district_info)
+
+    district_file = open(f'{download_dir}\\{date}-district.csv', 'w')
+    pr_file = open(f'{download_dir}\\{date}-pr.csv', 'w')
+    district_writer = csv.writer(district_file)
+    pr_writer = csv.writer(pr_file)
+
+    for i in range(len(district)):
+        row = []
+        row.append(district_info[i]['sggName'])
+
+        for tup in district[i]:
+            row.extend(list(tup))
+
+        district_writer.writerow(row)
+
+    for party, vote in pr.items():
+        pr_writer.writerow([party, vote])
+    
+    district_file.close()
+    pr_file.close()
