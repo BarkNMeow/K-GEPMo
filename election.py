@@ -3,7 +3,6 @@ import json
 import xml.etree.ElementTree as etree
 
 import time
-import csv
 import os
 
 from apiKey import API_KEY
@@ -13,7 +12,6 @@ from apiKey import API_KEY
     District Election: 2
     PR election: 7
 '''
-
 def get_xml_content(url, params):
     timeout = 1
     while True:
@@ -142,6 +140,7 @@ def get_election_result_single(election_list_row, is_district):
     params['numOfRows'] = 1
     params['pageNo'] = 1
     params['sgTypecode'] = 2 if is_district else 7
+    params['wiwName'] = '합계'
 
     if not is_district:
         del params['sggName']
@@ -173,9 +172,11 @@ def get_election_result(district_info):
     district_accumul = []
     pr_accumul = {}
 
+    blacklist = [(242, '20160413'), (46, '20200415')]
+
     for d in district_info:
         # Exception for general election in 2016, where there was only one candidate
-        if int(d['num']) == 242 and d['sgId'] == '20160413':
+        if (int(d['num']), d['sgId']) in blacklist:
             district_accumul.append([])
         else:
             print("Fetching district %d / %d (%.2f%%)..." % (int(d['num']), districts_cnt, int(d['num']) * 100 / districts_cnt), end='\r')
@@ -207,38 +208,45 @@ if __name__ == '__main__':
         print('Error occurred while making data directory')
         exit()
 
-    date = '20200415'
+    dates = ['20120411', '20160413', '20200415', '20240410']
 
-    print("Fetching district info...", end='\r')
-    district_info = get_election_districts(date)
-    print("Fetching district info... Done")
+    for date in dates:
+        print("Fetching district info...", end='\r')
+        district_info = get_election_districts(date)
+        print("Fetching district info... Done")
 
-    # print("Fetching party info...", end='\r')
-    # party_info = get_party_code(date)
-    # print("Fetching party info... Done")
+        # print("Fetching party info...", end='\r')
+        # party_info = get_party_code(date)
+        # print("Fetching party info... Done")
 
-    # party_code = {}
-    # for row in party_info:
-    #     party_code[row['jdName']] = row['pOrder']
+        # party_code = {}
+        # for row in party_info:
+        #     party_code[row['jdName']] = row['pOrder']
 
-    district, pr = get_election_result(district_info)
+        district, pr = get_election_result(district_info)
 
-    district_file = open(f'{download_dir}\\{date}-district.csv', 'w')
-    pr_file = open(f'{download_dir}\\{date}-pr.csv', 'w')
-    district_writer = csv.writer(district_file)
-    pr_writer = csv.writer(pr_file)
+        district_file = open(f'{download_dir}\\{date}-district.csv', 'w')
+        pr_file = open(f'{download_dir}\\{date}-pr.csv', 'w')
 
-    for i in range(len(district)):
-        row = []
-        row.append(district_info[i]['sggName'])
+        for i in range(len(district)):
+            row = []
+            row.append(district_info[i]['sdName'])
+            row.append(district_info[i]['sggName'])
 
-        for tup in district[i]:
-            row.extend(list(tup))
+            total_votes = 0
+            for (party, name, votes) in district[i]:
+                total_votes += votes
 
-        district_writer.writerow(row)
+            for (party, name, votes) in district[i]:
+                row.append(party)
+                row.append(name)
+                row.append('%.2f' % (votes / total_votes * 100))
+            
+            district_file.write(','.join(row) + '\n')
 
-    for party, vote in pr.items():
-        pr_writer.writerow([party, vote])
-    
-    district_file.close()
-    pr_file.close()
+        for party, vote in pr.items():
+            pr_file.write(f'{party}, {vote}\n')
+        
+        district_file.close()
+        pr_file.close()
+        print()
