@@ -1,5 +1,7 @@
 /tmp/*
 /election_data/*
+/sentiment_google/*
 tempCodeRunnerFile.py
 apiKey.py
 /__pycache__
+tmp.py
