@@ -14,8 +14,9 @@ openai = OpenAI(api_key=OPENAI_KEY)
 dates = ['20160413', '20200415', '20240410']
 dates_start = ['20160314', '20200316', '20240311']
 
-dates = dates[2:]
-dates_start = dates_start[2:]
+# Remove this part to investigate all dates
+dates = dates[1:]
+dates_start = dates_start[1:]
 
 def format_date(date: str) -> str:
     return "%s-%s-%s" % (date[:4], date[4:6], date[6:])
