@@ -15,8 +15,8 @@ dates = ['20160413', '20200415', '20240410']
 dates_start = ['20160314', '20200316', '20240311']
 
 # Remove this part to investigate all dates
-dates = dates[1:]
-dates_start = dates_start[1:]
+# dates = dates[1:]
+# dates_start = dates_start[1:]
 
 def format_date(date: str) -> str:
     return "%s-%s-%s" % (date[:4], date[4:6], date[6:])
@@ -25,7 +25,10 @@ def get_successful_news(name, after_date, before_date):
     mg = MagicGoogle()
 
     while True:
-        results = list(mg.search(query=f"{name} after:{after_date} before:{before_date}", num=10))
+        try:
+            results = list(mg.search(query=f"{name} after:{after_date} before:{before_date}", num=10))
+        except Exception:
+            continue
 
         # Unknown result format
         if len(results) < 2:
